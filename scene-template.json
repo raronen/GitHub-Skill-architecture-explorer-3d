@@ -1,0 +1,109 @@
+{
+  "id": "topic-slug",
+  "title": "End-to-end flow title",
+  "shortTitle": "Short flow name",
+  "summary": "One-sentence description of the complete E2E flow.",
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "e2eFlow": {
+    "nodeIds": ["entry-service", "entry-component"],
+    "startLabel": "REQUEST START",
+    "endLabel": "RESULT READY",
+    "color": "#60a5fa"
+  },
+  "networkZones": [
+    {
+      "id": "service-private-zone",
+      "label": "Service private network",
+      "kind": "service trust zone",
+      "color": "rgba(56, 189, 248, .7)",
+      "fill": "rgba(56, 189, 248, .035)",
+      "details": "Verified network or trust boundary enclosing service-owned components."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "entry-service",
+      "label": "Entry service",
+      "level": "service",
+      "kind": "service",
+      "role": "The service's concise role in this specific E2E flow.",
+      "architectureHints": ["UI"],
+      "runtimeProfile": {
+        "category": "UI",
+        "technologies": ["React 18", "TypeScript"],
+        "build": "Verified build system",
+        "runtime": "Browser",
+        "hosting": "Verified hosting surface",
+        "scope": "Client-side or regional/global scope",
+        "owner": "Verified owning team",
+        "ownerEvidence": "Repository-relative ownership evidence"
+      },
+      "summary": "What this service does in the E2E flow.",
+      "details": "How the service accepts work and delegates it to its components.",
+      "responsibilities": ["Own the service boundary shown in the overview"],
+      "repo": "Owning repository",
+      "telemetryUrl": "Verified Azure Monitor, Kusto Web Explorer, or Kuskus deep link",
+      "telemetryQuery": "Component-scoped query ending with | limit 10",
+      "telemetrySource": "Verified cluster/database or Application Insights resource",
+      "input": "Incoming request",
+      "output": "Service response",
+      "failure": "Summarize the service failure surfaces.",
+      "evidenceStatus": "verified",
+      "position": [0, 180, 0]
+    },
+    {
+      "id": "entry-component",
+      "parentId": "entry-service",
+      "label": "Request component",
+      "level": "component",
+      "kind": "component",
+      "role": "Coordinates the request inside the service.",
+      "summary": "Validates input and invokes the decisive implementation path.",
+      "details": "Describe the component boundary, collaborators, and failure behavior.",
+      "responsibilities": ["Coordinate the request"],
+      "repo": "Owning repository",
+      "input": "Validated request",
+      "output": "Component result",
+      "failure": "Component-specific failures.",
+      "evidenceStatus": "verified",
+      "position": [0, 90, 0]
+    },
+    {
+      "id": "handler-code",
+      "parentId": "entry-component",
+      "label": "RequestHandler.run",
+      "level": "code",
+      "kind": "function",
+      "role": "Executes the decisive code path.",
+      "summary": "Names the concrete function or class that performs the work.",
+      "details": "Link to the exact verified source range.",
+      "responsibilities": ["Execute the implementation"],
+      "repo": "Owning repository",
+      "sourceUrl": "Verified immutable Azure DevOps source link",
+      "input": "Typed arguments",
+      "output": "Typed return value",
+      "failure": "Thrown or returned errors.",
+      "evidenceStatus": "verified",
+      "position": [0, 0, 0]
+    }
+  ],
+  "edges": [
+    {
+      "source": "entry-service",
+      "target": "entry-component",
+      "label": "Example flow contract",
+      "kind": "sync",
+      "flow": false,
+      "payload": "What crosses the boundary",
+      "response": "What the destination returns at a high level",
+      "format": "JSON, Protobuf, typed object, KDS, etc.",
+      "structure": "{ representative: 'shape without sensitive values' }",
+      "communication": "in-process | inter-process | inter-node | cross-service",
+      "protocol": "method call | HTTP | gRPC | queue | streaming RPC",
+      "networkBoundary": "source zone → target zone",
+      "boundaryDetails": "Explain whether this crosses a process, host, service, network, or trust boundary.",
+      "errors": "Status codes, error envelope, retries, timeout, cancellation, and partial/streaming failure behavior.",
+      "evidenceStatus": "verified"
+    }
+  ]
+}

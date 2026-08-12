@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.copilot/architecture-explorer-3d/scene-schema.json",
+  "title": "3D Architecture Explorer Scene",
+  "type": "object",
+  "required": ["id", "title", "summary", "nodes", "edges"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "shortTitle": { "type": "string" },
+    "summary": { "type": "string" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "e2eFlow": {
+      "type": "object",
+      "required": ["nodeIds"],
+      "properties": {
+        "nodeIds": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+        "startLabel": { "type": "string" },
+        "endLabel": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "networkZones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "kind": { "type": "string" },
+          "color": { "type": "string" },
+          "fill": { "type": "string" },
+          "details": { "type": "string" },
+          "networkType": { "type": "string" },
+          "scope": { "type": "string" },
+          "resources": { "type": "array", "items": { "type": "string" } },
+          "topologyNotes": { "type": "array", "items": { "type": "string" } },
+          "sourceUrl": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "level", "summary", "details", "repo", "position", "evidenceStatus"],
+        "properties": {
+          "id": { "type": "string" },
+          "parentId": { "type": "string" },
+          "label": { "type": "string", "maxLength": 60 },
+          "level": { "enum": ["service", "component", "code"] },
+          "kind": { "type": "string" },
+          "role": { "type": "string" },
+          "architectureHints": {
+            "type": "array",
+            "items": { "enum": ["UI", "Backend", "DNS", "Database"] },
+            "uniqueItems": true
+          },
+          "runtimeProfile": {
+            "type": "object",
+            "required": ["category"],
+            "properties": {
+              "category": { "type": "string" },
+              "technologies": { "type": "array", "items": { "type": "string" } },
+              "build": { "type": "string" },
+              "runtime": { "type": "string" },
+              "hosting": { "type": "string" },
+              "scope": { "type": "string" },
+              "owner": { "type": "string" },
+              "ownerEvidence": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "summary": { "type": "string" },
+          "details": { "type": "string" },
+          "responsibilities": { "type": "array", "items": { "type": "string" } },
+          "repo": { "type": "string" },
+          "sourceUrl": { "type": "string" },
+          "telemetryUrl": { "type": "string" },
+          "telemetryQuery": { "type": "string" },
+          "telemetrySource": { "type": "string" },
+          "input": { "type": "string" },
+          "output": { "type": "string" },
+          "failure": { "type": "string" },
+          "evidenceStatus": { "enum": ["verified", "inferred", "external"] },
+          "networkZone": { "type": "string" },
+          "position": {
+            "type": "array",
+            "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }],
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "color": { "type": "string" },
+          "width": { "type": "number" },
+          "height": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target"],
+        "properties": {
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "label": { "type": "string" },
+          "kind": { "enum": ["sync", "async", "response", "dependency"] },
+          "flow": { "type": "boolean" },
+          "phase": { "type": "number" },
+          "payload": { "type": "string" },
+          "response": { "type": "string" },
+          "format": { "type": "string" },
+          "structure": { "type": "string" },
+          "communication": { "type": "string" },
+          "protocol": { "type": "string" },
+          "networkBoundary": { "type": "string" },
+          "boundaryDetails": { "type": "string" },
+          "errors": { "type": "string" },
+          "evidenceStatus": { "enum": ["verified", "inferred", "external"] }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
