@@ -10,6 +10,25 @@
     "shortTitle": { "type": "string" },
     "summary": { "type": "string" },
     "generatedAt": { "type": "string", "format": "date-time" },
+    "overviewRows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "nodeIds"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "nodeIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "e2eFlow": {
       "type": "object",
       "required": ["nodeIds"],
@@ -17,7 +36,38 @@
         "nodeIds": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
         "startLabel": { "type": "string" },
         "endLabel": { "type": "string" },
-        "color": { "type": "string" }
+        "color": { "type": "string" },
+        "parallelGroups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "sourceNodeId", "branchNodeIds", "joinNodeId"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "sourceNodeId": { "type": "string" },
+              "branchNodeIds": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+              "joinNodeId": { "type": "string" },
+              "columns": { "type": "integer", "minimum": 1, "maximum": 12 },
+              "summary": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "nodeId"],
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "nodeId": { "type": "string" },
+              "summary": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -51,8 +101,11 @@
           "id": { "type": "string" },
           "parentId": { "type": "string" },
           "label": { "type": "string", "maxLength": 60 },
-          "level": { "enum": ["service", "component", "code"] },
+          "level": { "enum": ["service", "component", "code", "storage"] },
           "kind": { "type": "string" },
+          "storageType": {
+            "enum": ["blob", "queue", "database", "event-stream", "cache", "file", "object", "other"]
+          },
           "role": { "type": "string" },
           "architectureHints": {
             "type": "array",
@@ -71,6 +124,25 @@
               "scope": { "type": "string" },
               "owner": { "type": "string" },
               "ownerEvidence": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "entryDetails": {
+            "type": "object",
+            "required": ["hint", "evidenceStatus"],
+            "properties": {
+              "hint": { "type": "string" },
+              "dns": { "type": "string" },
+              "dnsZone": { "type": "string" },
+              "resolutionChain": { "type": "array", "items": { "type": "string" } },
+              "ingress": { "type": "string" },
+              "tls": { "type": "string" },
+              "loadBalancing": { "type": "string" },
+              "networkBoundary": { "type": "string" },
+              "routing": { "type": "string" },
+              "lowerLayers": { "type": "array", "items": { "type": "string" } },
+              "sourceUrl": { "type": "string" },
+              "evidenceStatus": { "enum": ["verified", "inferred", "external"] }
             },
             "additionalProperties": false
           },
@@ -111,6 +183,8 @@
           "label": { "type": "string" },
           "kind": { "enum": ["sync", "async", "response", "dependency"] },
           "flow": { "type": "boolean" },
+          "overview": { "type": "boolean" },
+          "lane": { "type": "number", "minimum": -4, "maximum": 4 },
           "phase": { "type": "number" },
           "payload": { "type": "string" },
           "response": { "type": "string" },

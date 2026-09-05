@@ -4,11 +4,34 @@
   "shortTitle": "Short flow name",
   "summary": "One-sentence description of the complete E2E flow.",
   "generatedAt": "2026-01-01T00:00:00.000Z",
+  "overviewRows": [
+    {
+      "id": "request-row",
+      "label": "Request and orchestration",
+      "nodeIds": ["entry-service", "dependency-a", "dependency-b"]
+    },
+    {
+      "id": "persistence-row",
+      "label": "Persistence and asynchronous work",
+      "nodeIds": ["durable-store"]
+    }
+  ],
   "e2eFlow": {
     "nodeIds": ["entry-service", "entry-component"],
     "startLabel": "REQUEST START",
     "endLabel": "RESULT READY",
-    "color": "#60a5fa"
+    "color": "#60a5fa",
+    "parallelGroups": [
+      {
+        "id": "metadata-fanout",
+        "label": "Parallel metadata fan-out",
+        "sourceNodeId": "entry-service",
+        "branchNodeIds": ["dependency-a", "dependency-b"],
+        "joinNodeId": "entry-service",
+        "columns": 1,
+        "summary": "The source calls both branches concurrently and waits for their responses before continuing."
+      }
+    ]
   },
   "networkZones": [
     {
@@ -38,6 +61,20 @@
         "owner": "Verified owning team",
         "ownerEvidence": "Repository-relative ownership evidence"
       },
+      "entryDetails": {
+        "hint": "DNS & ingress — hover",
+        "dns": "Public service name and record type, or explicitly Not proven",
+        "dnsZone": "Authoritative DNS zone and provider",
+        "resolutionChain": ["Client resolver", "Service CNAME", "Ingress A/AAAA record"],
+        "ingress": "Public/private endpoint and receiving gateway, proxy, or listener",
+        "tls": "Protocol, port, SNI/Host handling, and known TLS termination layer",
+        "loadBalancing": "Traffic manager, Front Door, load balancer, direct public IP, or Not proven",
+        "networkBoundary": "Client network → public/private ingress → service network",
+        "routing": "How ingress selects a region, stamp, cluster, shard, or service instance",
+        "lowerLayers": ["DNS", "Public IP or private endpoint", "Ingress listener", "Service process"],
+        "sourceUrl": "Verified immutable source link for DNS or ingress ownership",
+        "evidenceStatus": "verified"
+      },
       "summary": "What this service does in the E2E flow.",
       "details": "How the service accepts work and delegates it to its components.",
       "responsibilities": ["Own the service boundary shown in the overview"],
@@ -50,6 +87,38 @@
       "failure": "Summarize the service failure surfaces.",
       "evidenceStatus": "verified",
       "position": [0, 180, 0]
+    },
+    {
+      "id": "dependency-a",
+      "label": "Parallel dependency A",
+      "level": "service",
+      "kind": "service",
+      "role": "Handles one concurrent request from the entry service.",
+      "summary": "Runs beside dependency B and returns independently to the caller.",
+      "details": "Replace with a source-backed service and exact request/response semantics.",
+      "responsibilities": ["Process parallel branch A"],
+      "repo": "Owning repository",
+      "input": "Branch A request",
+      "output": "Branch A response",
+      "failure": "Describe whether the join fails, degrades, or uses cache.",
+      "evidenceStatus": "verified",
+      "position": [280, 240, 0]
+    },
+    {
+      "id": "dependency-b",
+      "label": "Parallel dependency B",
+      "level": "service",
+      "kind": "service",
+      "role": "Handles another concurrent request from the entry service.",
+      "summary": "Runs beside dependency A and returns independently to the caller.",
+      "details": "Replace with a source-backed service and exact request/response semantics.",
+      "responsibilities": ["Process parallel branch B"],
+      "repo": "Owning repository",
+      "input": "Branch B request",
+      "output": "Branch B response",
+      "failure": "Describe whether the join fails, degrades, or uses cache.",
+      "evidenceStatus": "verified",
+      "position": [280, 120, 0]
     },
     {
       "id": "entry-component",
@@ -85,9 +154,104 @@
       "failure": "Thrown or returned errors.",
       "evidenceStatus": "verified",
       "position": [0, 0, 0]
+    },
+    {
+      "id": "request-storage",
+      "parentId": "entry-component",
+      "label": "Request queue",
+      "level": "storage",
+      "kind": "durable queue",
+      "storageType": "queue",
+      "role": "Durably buffers accepted work until the processor dequeues it.",
+      "summary": "Stores queued request envelopes across process restarts.",
+      "details": "Describe the concrete store, partition or queue key, retention, acknowledgement boundary, retry visibility, and dead-letter behavior.",
+      "responsibilities": ["Persist queued work", "Expose dequeue and acknowledgement semantics"],
+      "repo": "Owning repository or external platform",
+      "sourceUrl": "Verified immutable source link for the storage client or configuration",
+      "input": "Enqueue request and message envelope",
+      "output": "Durable acknowledgement, message id, or dequeue lease",
+      "failure": "Throttling, timeout, visibility retry, poison-message, and dead-letter behavior.",
+      "evidenceStatus": "verified",
+      "position": [120, 0, 0]
     }
   ],
   "edges": [
+    {
+      "source": "entry-service",
+      "target": "dependency-a",
+      "label": "Parallel request A",
+      "kind": "dependency",
+      "flow": true,
+      "overview": true,
+      "lane": 1,
+      "payload": "Branch A request",
+      "response": "Branch A result",
+      "format": "Verified wire format",
+      "structure": "{ requestId, input }",
+      "communication": "cross-service",
+      "protocol": "Verified protocol",
+      "networkBoundary": "caller → dependency A",
+      "boundaryDetails": "Starts concurrently with branch B.",
+      "errors": "Describe retry and join failure behavior.",
+      "evidenceStatus": "verified"
+    },
+    {
+      "source": "dependency-a",
+      "target": "entry-service",
+      "label": "Branch A result",
+      "kind": "response",
+      "flow": true,
+      "overview": true,
+      "lane": 1,
+      "payload": "Branch A response",
+      "response": "Caller records branch A completion.",
+      "format": "Verified wire format",
+      "structure": "{ requestId, result }",
+      "communication": "cross-service response",
+      "protocol": "Verified protocol",
+      "networkBoundary": "dependency A → caller",
+      "boundaryDetails": "Returns to the declared join node.",
+      "errors": "Describe response errors.",
+      "evidenceStatus": "verified"
+    },
+    {
+      "source": "entry-service",
+      "target": "dependency-b",
+      "label": "Parallel request B",
+      "kind": "dependency",
+      "flow": true,
+      "overview": true,
+      "lane": 1,
+      "payload": "Branch B request",
+      "response": "Branch B result",
+      "format": "Verified wire format",
+      "structure": "{ requestId, input }",
+      "communication": "cross-service",
+      "protocol": "Verified protocol",
+      "networkBoundary": "caller → dependency B",
+      "boundaryDetails": "Starts concurrently with branch A.",
+      "errors": "Describe retry and join failure behavior.",
+      "evidenceStatus": "verified"
+    },
+    {
+      "source": "dependency-b",
+      "target": "entry-service",
+      "label": "Branch B result",
+      "kind": "response",
+      "flow": true,
+      "overview": true,
+      "lane": 1,
+      "payload": "Branch B response",
+      "response": "Caller records branch B completion.",
+      "format": "Verified wire format",
+      "structure": "{ requestId, result }",
+      "communication": "cross-service response",
+      "protocol": "Verified protocol",
+      "networkBoundary": "dependency B → caller",
+      "boundaryDetails": "Returns to the declared join node.",
+      "errors": "Describe response errors.",
+      "evidenceStatus": "verified"
+    },
     {
       "source": "entry-service",
       "target": "entry-component",
@@ -103,6 +267,23 @@
       "networkBoundary": "source zone → target zone",
       "boundaryDetails": "Explain whether this crosses a process, host, service, network, or trust boundary.",
       "errors": "Status codes, error envelope, retries, timeout, cancellation, and partial/streaming failure behavior.",
+      "evidenceStatus": "verified"
+    },
+    {
+      "source": "entry-component",
+      "target": "request-storage",
+      "label": "Enqueue request for processing",
+      "kind": "async",
+      "flow": true,
+      "payload": "Validated request envelope written for durable processing",
+      "response": "Queue acknowledgement and message identifier; not completion of downstream work",
+      "format": "Serialized queue message",
+      "structure": "{ requestId, partitionKey, payloadReference, attempt }",
+      "communication": "inter-process durable storage write",
+      "protocol": "queue enqueue",
+      "networkBoundary": "service process → storage account",
+      "boundaryDetails": "Crosses the process and persistence boundary into a durable queue.",
+      "errors": "Authentication, throttling, timeout, and enqueue rejection propagate; retries must preserve idempotency.",
       "evidenceStatus": "verified"
     }
   ]

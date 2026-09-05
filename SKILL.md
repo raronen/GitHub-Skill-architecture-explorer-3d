@@ -16,6 +16,9 @@ open it in the `architecture-explorer-3d` canvas.
    adds understanding. A multi-service flow should normally contain roughly 50-100
    meaningful nodes and 8-12 useful zoom steps on decisive branches when the source
    supports that depth; a shallow service -> component -> method chain is insufficient.
+   Add every source-backed durable storage boundary that participates in the flow,
+   including blobs, object stores, queues, dead-letter queues, databases, caches, files,
+   and event streams.
 3. Give every node:
    - a concise `role` stating why the node exists in this specific E2E flow;
    - a one- or two-sentence `summary`, with two useful lines rendered inside the rectangle;
@@ -25,6 +28,10 @@ open it in the `architecture-explorer-3d` canvas.
    - a verified Azure DevOps source link that opens the exact file/range when possible;
    - a verified component-specific telemetry deep link beside Code when the cluster,
      database/resource, table, and component filter are known.
+   Storage nodes must also identify `storageType`, the stored data or message,
+   partition/key/queue selection, retention or visibility behavior, acknowledgement
+   boundary, read/delete semantics, retry behavior, and dead-letter path where source
+   proves them.
 4. Create a durable scene JSON file.
 5. Validate the scene, then open the 3D canvas at the service overview.
 6. Generate a durable, self-contained HTML version of the completed scene.
@@ -65,6 +72,21 @@ Every runtime edge must explain the communication, not just name the arrow:
    authorization, validation, orchestration, persistence/state transition, outbound
    client, retry/timeout logic, completion path, and rollback/failure path. Give each
    distinct responsibility its own node when source proves it.
+   Inventory every durable read/write boundary on that path. Model the actual queue,
+   blob/container, table/database, cache, file, event stream, and dead-letter store as a
+   storage node rather than hiding it inside the producer or consumer.
+   Before composing the scene, create an ordered dependency inventory for every
+   participating service. Classify each dependency as always-on, cache-miss-only,
+   conditional, parallel, post-response, background refresh, retry/cancellation, or
+   failure-only. Include authentication/authorization, configuration, metadata,
+   placement, cache, throttling/semaphore, execution, audit, billing, validation,
+   shadow/fork, cancellation, telemetry, and durable-storage dependencies when source
+   proves they participate. Do not stop after the dependencies named by the user.
+   Keep the requested scenario boundary strict: an adjacent flow sharing a gateway,
+   queue technology, repository, or deployment is not part of the scene unless it
+   causally participates in the requested E2E result. For an Analytics-table scene,
+   exclude Auxiliary/AuxGateway, export, indexing, backfill, alternate-ingress, and
+   unproven downstream branches unless the user explicitly requests them.
 8. Do not stop at the first matching class or method. Trace the meaningful callers
    above it and callees below it, including side branches and response handling, until
    another service boundary or decisive persisted state is reached.
@@ -72,6 +94,23 @@ Every runtime edge must explain the communication, not just name the arrow:
    resource but access was unavailable, retry the live connection when VPN/auth becomes
    available, inspect the real schema, and prove a component filter before omitting the
    Telemetry action.
+10. For every network-addressable service in the runtime flow, extract the actual
+    hostname used by the caller and execute live DNS lookups from the current
+    environment. At minimum run `nslookup <hostname>` and targeted
+    `nslookup -type=CNAME`, `-type=A`, and `-type=AAAA` queries. Walk the hostname's
+    parent labels with `nslookup -type=SOA <candidate-zone>` and
+    `nslookup -type=NS <candidate-zone>` until the authoritative delegated zone and
+    DNS provider are established.
+11. Preserve the complete observed alias chain, resolved addresses, authoritative
+    zone/name servers, resolver context, and observation time in the service's
+    `entryDetails` fields. Resolve public and private-link variants only when they
+    genuinely participate in the traced flow; never enumerate unrelated hostnames.
+12. Treat `nslookup` as point-in-time external evidence, not proof of the deployment
+    implementation behind an IP. Correlate it with source or infrastructure
+    configuration before naming Front Door, Traffic Manager, a load balancer, ingress
+    controller, region, or compute substrate. If a private name is unreachable because
+    VPN/private DNS is unavailable, record the exact lookup failure and `Not proven`
+    rather than omitting the service or guessing.
 
 ## Durable storage
 
@@ -120,7 +159,10 @@ starting point. Important semantics:
 
 - `position` is `[x, y, z]` in world coordinates.
 - `parentId` creates semantic zoom hierarchy.
-- `level` is one of `service`, `component`, or `code`. The complete E2E flow is
+- `level` is one of `service`, `component`, `code`, or `storage`. Storage is an
+  orthogonal architecture type, not a semantic-zoom depth: place it beside the
+  producer/consumer at the hierarchy level where its durable boundary becomes relevant.
+  The complete E2E flow is
   scene metadata, not a node or hierarchy level.
 - Treat `level` as a semantic type, not a maximum depth. A component may contain
   narrower components, and a code node may contain more specific code nodes. For
@@ -139,15 +181,97 @@ starting point. Important semantics:
   semantic level: services are blue, components are green, and code is pink.
   Node-specific colors must not override this mapping; architecture category remains
   distinct through its category pill and technology icons.
+- Render storage nodes in a fourth, unmistakable amber/gold palette. Draw them as
+  storage cylinders with elliptical caps, including in the minimap, rather than as
+  service/component/code rectangles. Never recolor a service or component to imply
+  storage; create an explicit `level: "storage"` node.
+- Use `storageType` to distinguish `blob`, `queue`, `database`, `event-stream`,
+  `cache`, `file`, `object`, or `other`. Create separate nodes for materially distinct
+  stores, regional copies, processing queues, and dead-letter queues. Do not model
+  in-memory channels or ordinary method buffers as durable storage.
+- A storage node must state what it stores, who writes and reads it, its region or
+  scope, addressing/partition key, acknowledgement boundary, visibility or retention,
+  deletion/commit behavior, and poison/dead-letter handling when known. Mark unknown
+  details `Not proven`; do not infer Azure Storage, Event Hubs, Kusto, or another
+  platform merely from generic queue/blob terminology.
 - `architectureHints` is an optional, conservative set drawn from `UI`, `Backend`,
   `DNS`, and `Database`. Add a hint only when that role is relevant and verified.
 - Prefer a verified `runtimeProfile` over a generic architecture hint. Capture category,
   technologies/languages, build system, runtime, hosting substrate, regional/global
   scope, and owning team. Omit unknown fields rather than guessing Kubernetes, VMSS,
   framework, regionality, or ownership.
+- Give every network-addressable top-level service an `entryDetails` object. Research
+  the client-visible DNS name, CNAME/A/AAAA/private-link chain, authoritative zone and
+  provider, protocol and port, SNI/Host handling, TLS termination when proven, public
+  or private ingress resource, traffic-management/load-balancing layer, network/trust
+  boundary, region/stamp/cluster routing, and the lower-layer compute target.
+- Render `entryDetails` as a compact `DNS · hover` badge attached to the left-hand
+  entrance of the blue service card. Hovering the badge must reveal the structured
+  DNS, ingress, traffic-routing, boundary, and lower-layer facts without obscuring
+  Code or Telemetry actions. The self-contained HTML must use the same interaction.
+- Keep the DNS/ingress popup open while the pointer is over either its badge or the
+  popup itself. Make the popup pointer-interactive and scrollable, provide a short
+  hover bridge/grace period between badge and popup, and close it only after the
+  pointer has left both. Do not apply `pointer-events: none` to this popup.
+- Do not fill infrastructure gaps with likely Azure products. Explicitly write
+  `Not proven` when source and live DNS evidence do not establish Front Door, Traffic
+  Manager, Azure Load Balancer, TLS termination, or the final compute substrate.
+  Use `entryDetails.evidenceStatus` and an immutable `sourceUrl` for the strongest
+  supporting DNS/ingress evidence.
 - `edges` describe runtime flow, not merely static dependency.
 - Every substantive edge must populate `payload`, `response`, `format`, `structure`,
   `communication`, `protocol`, `networkBoundary`, `boundaryDetails`, and `errors`.
+- Every edge to or from storage must name the concrete operation in its primary label:
+  enqueue/dequeue, upload/download, put/get, append/consume, query, delete, acknowledge,
+  renew visibility, or dead-letter. Its details must explain why the request is made,
+  what exact data or message is persisted or retrieved, the key/partition/queue used,
+  what the storage acknowledgement proves, and what it does not prove about downstream
+  completion. Draw separate read and write edges when both materially affect the flow.
+- Treat every durable boundary as an explicit **writer -> store <- reader** handoff,
+  never as one link in a generic left-to-right chain. The writer's arrow points to the
+  store and uses a write verb (`Enqueue`, `Upload`, `Append`, `Put`, `Publish`). The
+  reader's request arrow also points from the reader to the store and uses a read verb
+  (`Dequeue`, `Download`, `Consume`, `Get`, `Query`). When the returned bytes/message
+  materially clarify the flow, add a separate reverse `Response: Return ...` edge; its
+  response styling must make clear that the passive store is returning a requested
+  result, not initiating work.
+- Never place a storage node in `e2eFlow.nodeIds`, including the final database/table.
+  The canonical spine is the ordered sequence of active services/processes. Attach the
+  final persisted result to the last writer with an explicit write edge and put the END
+  marker on that writer; otherwise the thick spine can visually turn passive stores
+  into callers or appear to connect one store directly to another.
+- For every overview-visible queue, blob, event stream, or database, show both its
+  active writer and active reader in the same view whenever both are source-proven.
+  If only one side is known, label the other side `External/Not proven` rather than
+  implying it through the canonical spine.
+- **Visible storage overrides ordinary edge hiding.** Whenever a storage cylinder is
+  rendered, render every authored runtime edge whose source or target is that storage,
+  regardless of `overview`, the `All interactions` toggle, semantic depth, or whether
+  the exact service/component/code endpoint is currently rendered.
+- If the non-storage endpoint is hidden inside a collapsed service family, project
+  that endpoint to its nearest visible ancestor card while preserving the original
+  edge direction, operation, payload, response, protocol, evidence, and details.
+  Prefix the visible primary label with the concrete hidden endpoint name, for example
+  `Teleduct Driver · Dequeue notification`, so the ancestor attachment never implies
+  that the whole family performs an unspecified storage operation.
+- This projection is visual only: never rewrite the scene edge's real source/target,
+  invent a family-level call, or merge distinct writer/reader/delete/acknowledgement
+  edges. Multiple hidden services touching one visible store must produce multiple
+  independently selectable lines attached to their shared visible ancestor.
+- Do not project a storage edge when no visible ancestor exists, or when projection
+  would make both endpoints the same visible card. Reveal/reflow the relevant ancestor
+  instead; never draw a self-loop that hides the actual durable boundary.
+- Lay out a durable handoff as a readable triad: keep the writer and reader on the
+  main service lane in runtime order, and place the passive store wholly above or
+  below the midpoint between them. Do not place the store between them on the service
+  baseline. Route the writer and reader operations independently so neither line
+  crosses another storage cylinder or resembles a storage-to-storage connection.
+- Validate the rendered projection, not only the JSON endpoints. Adaptive ancestor
+  collapsing, thick E2E spines, overlapping routes, and hidden labels can make valid
+  service-to-storage edges look like storage-to-storage calls. At overview and each
+  semantic expansion, confirm visually that every store has a clearly labeled writer
+  and reader, no route appears to continue through a store, and no two stores appear
+  connected. If the projected view is ambiguous, reflow or hide the secondary route.
 - Every newly revealed service/component/code view should retain evidence-backed
   runtime arrows that communicate what data or execution context moves between nodes.
   Add an edge only when source proves a real call, message, response, data transfer, or
@@ -199,18 +323,15 @@ starting point. Important semantics:
 - Never use ellipses as semantic placeholders or truncation indicators. If an arrow
   annotation still collides after alternate placement, keep it hidden at that zoom
   level and restore the complete plain-text annotation once zoom creates enough space.
-- Render each network/trust-zone name as a high-contrast badge above its enclosing
-  ellipse, clamped inside the viewport. Do not place low-contrast zone text over the
-  line, inside the circle, or behind node/edge content.
-- Reserve a dedicated foreground band above node cards and runtime-profile badges for
-  network-zone names, VNet/subnet descriptions, and resource lists. Wrap long zone
-  text, draw annotations after scene content, and move the architecture row downward
-  when necessary so no network text is hidden behind a card, arrow, badge, breadcrumb,
-  toolbar, or another annotation.
-- When the network annotation cannot sit directly beside the enclosing boundary,
-  extend the boundary upward toward it: reshape the ellipse or add a short tapered
-  boundary connector so the orange/network outline visibly terminates at the
-  explanation. Keep that connector behind text and outside runtime-profile badges.
+- Keep network/trust-zone ellipses visually quiet. Attach one compact, high-contrast
+  circular `(i)` control to each ellipse and hide the zone name, network type, scope,
+  VNet/subnet details, resources, and topology notes at rest.
+- Reveal the complete zone annotation only while its own `(i)` control is hovered.
+  Keep that hover panel clamped inside the viewport, associated with its ellipse, and
+  above scene content; moving away must immediately restore the uncluttered view.
+- Do not reserve permanent foreground bands, connector callouts, or always-visible
+  paragraphs for zone metadata. The circle plus hover disclosure is the default
+  network-zone annotation pattern.
 - Treat semantic-label occlusion as a layout defect everywhere. Measure cards, runtime
   badges, technology icons, arrows, network annotations, E2E markers, and fixed UI
   panels before final placement; reserve space or reposition content rather than
@@ -224,18 +345,59 @@ starting point. Important semantics:
   user/client entry point through execution to the final consumed result. The renderer
   draws it as a separate thick, high-contrast spine with repeated direction arrowheads,
   forward animation, and explicit START/END markers.
+- Never place concurrently called dependencies consecutively in `e2eFlow.nodeIds`;
+  that falsely claims dependency A calls dependency B. Keep the caller and its
+  post-join continuation on the canonical spine, declare the concurrent services in
+  `e2eFlow.parallelGroups`, and draw explicit caller-to-dependency request edges plus
+  dependency-to-caller/join response edges.
+- Each `parallelGroups` entry must name the real `sourceNodeId`, all
+  `branchNodeIds`, and the `joinNodeId`, with a summary stating the trigger, what runs
+  concurrently, and what must complete before the flow continues. Use `columns` only
+  to keep a large fan-out readable; it has no runtime semantics.
+- Mark the essential request and response edges of a parallel group with
+  `overview: true` so they remain visible without enabling `All interactions`. Use
+  separate `lane` values for opposite request/response directions so both arrows are
+  visible. Prefix response labels with `Response` and state the fan-in condition.
+- Use `e2eFlow.phases` to distinguish strict sequence from concurrency. Give a
+  parallel fan-out one numbered phase, list its branches in the phase summary, and
+  give the join/continuation the next phase. Never assign sequential phase numbers to
+  sibling branches that start concurrently.
 - Preserve the complete response route in `e2eFlow.nodeIds`, including repeated
   services when the result returns through them. Never shortcut Engine directly to
   the UI when the real path returns through Gateway, transport/client, query state,
   or a host callback. Repeated node IDs are valid when runtime order revisits a
   service on the response path.
+- Define concise, source-backed `e2eFlow.phases` for complex flows. The default
+  experience is a numbered, clickable phase rail that explains the main sequence
+  without drawing every callback and side effect over the cards.
+- Always render one ordered primary E2E arrow through the visible components. Sort
+  siblings by their first participation in `e2eFlow.nodeIds` so this main path reads
+  left to right rather than crossing itself.
+- Route every transition on the shortest clear path. Use a direct segment when it
+  does not cross another card; never add long decorative return lanes or staggered
+  detours merely because an edge points backward. If the runtime sequence would force
+  a route behind intervening cards, reflow the later flow steps into a second row below
+  the first and connect the rows with a short flowchart elbow.
+- Never place a dependency box on top of another dependency line emitted by the same
+  caller, including the caller's canonical continuation to its next E2E service.
+  Reserve a clear caller-to-continuation lane and place parallel dependency boxes
+  wholly outside it, or route every affected line around the complete dependency grid.
+  Validate the final routed segments against every visible non-endpoint card; a line
+  crossing through any sibling dependency rectangle is a layout failure.
+- Keep secondary runtime arrows hidden by default when the complete interaction
+  graph would create visual spaghetti. Provide an explicit `All interactions`
+  toggle that restores request, response, callback, retry, and side-effect edges.
+  The primary spine and `overview: true` parallel request/response edges remain visible
+  in both modes.
 - The E2E spine must be semantically adaptive: at overview zoom it collapses hidden
   implementation nodes to their visible service ancestors; as component/code
   rows appear, the same spine expands through those newly visible nodes. Keep this
   route continuous and ordered; do not define disconnected per-layer spines.
-- Render START and END as foreground callouts outside the first and last rectangles,
-  with short connector lines to the actual endpoints. They must remain visible above
-  node cards and be clamped inside the viewport rather than hidden behind content.
+- Render START and END as foreground callouts attached to the first and last endpoint
+  cards, with short connector lines. They must move with those cards after pan, zoom,
+  minimap area selection, or semantic expansion; never pin them to fixed screen edges.
+  Reposition a callout above or below its visible endpoint when the side placement
+  would leave the viewport, and hide it when its real endpoint card is offscreen.
 - `kind: "async"` renders a dashed edge; `flow: false` suppresses the animated packet.
 - Assign `networkZone` to nodes that run inside a known network/trust zone and define
   that zone in `networkZones`. The renderer draws a toggleable enclosing ellipse.
@@ -249,18 +411,70 @@ starting point. Important semantics:
 
 ## Composition rules
 
+- **Highest-priority layout invariant: boxes must never be on top of other boxes.**
+  This rule overrides fitting the whole scene into one viewport, compactness, symmetry,
+  and decorative composition. Before publication, project the final rendered bounds of
+  every card and storage cylinder at overview and every supported expansion state. Any
+  intersection between unrelated boxes is a blocking failure: reflow the scene, add
+  rows or columns, move off-chain dependencies outside the expanded caller, or require
+  pan/zoom. Never accept, hide, or explain away a box-on-box collision.
 - Scene title and summary describe the complete user intent without creating a
   synthetic root node.
-- Services form the only readable left-to-right E2E spine at initial zoom. Do not
-  expose component/code rows in the overview.
+- Services and directly participating top-level storage boundaries form the readable
+  left-to-right E2E spine at initial zoom. Do not expose component/code rows in the
+  overview. Keep secondary or failure-only storage inside its owning branch until
+  expanded unless it is necessary to explain the main durable handoff.
 - The initial/reset overview must fit the complete E2E flow in the viewport, from
   request START through result END, without requiring pan or zoom.
-- Lay all top-level E2E services on one centered horizontal baseline. Never use a
-  diagonal low-left to high-right composition for the overview. Compute card widths
-  and inter-card gaps from the viewport so the row remains centered and fully visible.
+- Use the full viewport in both dimensions. Do not force a large architecture onto one
+  compressed horizontal row when several readable rows can use the available space.
+  Keep runtime order unmistakable, but wrap the canonical top-level E2E route into
+  two or more explicitly authored left-to-right rows when one row would shrink cards,
+  crowd labels, overlap routes, or leave most of the screen empty. Prefer cohesive
+  phase rows such as producer/delivery, core processing, and persistence/fallback.
+  Continue the canonical spine between rows with a short clear elbow and direction
+  arrowheads; never use a diagonal composition whose order is ambiguous.
+- Place dependencies that are not part of `e2eFlow.nodeIds` in compact stacks or grids
+  above or below the row containing their actual caller. Never place an off-chain
+  dependency inside a row's main request/response band or between two consecutive
+  main-chain services. Use direct request/response arrows and do not connect sibling
+  dependencies as a chain. Compute independent card widths and inter-card gaps per row
+  so every row remains centered, legible, and visibly separated from the rows above
+  and below it.
+- When a scene needs a stable authored overview, define explicit overview rows in scene
+  metadata rather than relying on automatic source ordering. Each top-level node must
+  appear in exactly one row. Use the authored row order for layout, minimap orientation,
+  reset/overview behavior, and initial camera fit; preserve that row structure while
+  individual branches expand.
+- Choose above versus below independently for each caller fan-out based on available
+  space and route collisions. Keep the complete dependency card bounds, labels, badges,
+  and network ellipse on that side of the main lane; split a fan-out across top and
+  bottom only when one side cannot fit without overlap, and keep each subgroup compact.
 - Component and code nodes require progressively closer zoom or explicit focus.
-- Use aggressive semantic-zoom collapse thresholds: when zooming out, lower-level
-  rectangles should disappear quickly rather than linger and overcrowd the overview.
+- Zooming out must never collapse services, components, code, storage, or expanded
+  hierarchy automatically. Camera zoom and hierarchy collapse are separate actions.
+  When an outward gesture reaches a point where the renderer would formerly collapse
+  the nearest expanded branch, show a modal confirmation instead and preserve the
+  complete expanded state until the user explicitly confirms.
+- The confirmation must ask a direct question such as `Collapse expanded services?`
+  and provide `Keep expanded` plus `Collapse one level`. `Keep expanded`, `Esc`, modal
+  cancellation, clicking outside where supported, and continued zooming must preserve
+  all expansion state. Make the non-destructive choice the initial keyboard focus.
+- Show at most one collapse confirmation per expansion generation. A successful
+  transition that adds at least one node ID to the expanded set arms one future prompt.
+  Opening that prompt consumes the arm immediately, regardless of whether the user
+  chooses `Keep expanded`, presses `Esc`, cancels, or confirms collapse. Every later
+  zoom-out must remain silent until another node is newly expanded.
+- Camera scaling, panning, repeated zoom-out, keeping the current hierarchy, closing
+  the modal, collapsing a level, and selecting an already-expanded item must never
+  re-arm the prompt. A later wheel expansion, minimap marker expansion, area-selection
+  expansion, or `Expand all` that actually adds a previously collapsed node may re-arm
+  exactly one prompt.
+- `Collapse one level` may collapse only the nearest branch or branches identified
+  when the prompt opened. Do not collapse unrelated branches, recompute the targets
+  while the modal is open, or cascade farther than one semantic step. Explicit
+  `Collapse all`/`Overview` controls may still restore the overview immediately because
+  their labels communicate the destructive navigation action before activation.
 - Keep the camera orientation fixed. Users may pan and zoom, but must not yaw, orbit,
   rotate, or tilt the architecture plane; spatial direction must remain stable.
 - The initial/reset view alone is fit to the complete E2E route. Wheel input after that
@@ -306,6 +520,26 @@ starting point. Important semantics:
 - Verify that all visible sibling rectangles have disjoint bounds after every layout.
   Parent containers may enclose descendants, but unrelated or sibling rectangles must
   never be drawn on top of one another.
+- Boxes must never be placed on top of one another. This includes architecture cards
+  overlapping other cards and fixed UI such as phase rails, breadcrumbs, titles,
+  minimaps, legends, toolbars, network labels, or detail panels. Reflow, reserve
+  measured space, reduce parallel-grid rows, or hide optional chrome instead.
+- Give connected boxes enough measured separation for the complete primary arrow label
+  plus at least 24 pixels of clear padding on both sides. Prefer a wider architecture
+  that requires horizontal pan over a compact layout where either endpoint covers the
+  arrow text. Recompute this spacing after semantic expansion because container growth
+  changes the available inter-card corridor.
+- Enforce a zero-overlap invariant for every visible semantic item, not only boxes:
+  cards, storage cylinders, runtime-profile text, category/technology badges, DNS
+  controls, network ellipses, edge labels, arrows, START/END markers, hover targets,
+  and fixed UI must not cover one another. An arrow may touch only its own source and
+  target. Text or badges belonging to an off-chain dependency should be placed on the
+  dependency's outer side (below a bottom dependency row, above a top row), never in
+  the clear arrow corridor between that dependency and its caller.
+- Treat a numbered phase rail as optional navigation, not required scene content.
+  Hide or remove it when it consumes architecture space or overlaps any box; preserve
+  phase order in `e2eFlow.phases` for details and future navigation without painting a
+  full-width row over the canvas.
 - Measure floating UI panels after their content is rendered. Position breadcrumbs,
   controls, and supporting panels from actual bounds rather than fixed offsets so
   typography and viewport changes cannot make interface rectangles overlap.
@@ -328,12 +562,53 @@ starting point. Important semantics:
   are close, including their already-expanded descendant branches.
 - Provide a toggleable side minimap that shows the whole architecture, highlights the
   current camera target, and supports click-to-pan navigation.
+- The minimap must show every scene node from the initial overview, including collapsed
+  descendants. Lay the complete hierarchy out inside the existing minimap dimensions;
+  fit and simplify markers rather than increasing the minimap's width or height.
 - Anchor the minimap in the lower-left above the legend. It must not obscure the title,
   breadcrumbs, upper flow labels, or the main horizontal E2E row.
-- The minimap must include one-click row controls for the deepest visible semantic
-  level and an Overview action that collapses immediately to the main service row.
+- The minimap must include a compact control for the deepest visible semantic level
+  and dedicated `Expand all` and `Collapse all` controls. `Collapse all` immediately
+  restores the initial main service-row overview and camera fit.
   Manual row collapse is a hard visibility cap; zoom cannot reveal deeper rows until
   the user raises that cap.
+- Minimap node markers must control main-view hierarchy expansion. Clicking an
+  expandable marker toggles that rectangle, revealing its ancestor path as needed.
+  Also provide rectangle and circle area-selection tools. While either tool is active,
+  dragging that shape around minimap markers expands every selected expandable node
+  and reveals each selected node's ancestor path. Draw the selection shape live,
+  distinguish the active tool clearly, and keep ordinary click-to-toggle behavior
+  unchanged when area selection is off.
+- Minimap area selection is **visibility-snapshot exact**. At pointer-down, freeze the
+  IDs of markers currently visible in the main hierarchy. On release, hit-test only
+  those frozen markers, using each marker's center against the completed shape.
+  Collapsed descendants remain visible as orientation dots in the minimap but are not
+  selectable by that gesture, even when their dots lie inside the rectangle or circle.
+- Expand every selected marker by exactly one hierarchy level. A gesture may reveal
+  the selected marker's direct children, but those newly revealed children and all
+  deeper descendants must remain collapsed. They become eligible only after the user
+  begins a later, separate selection gesture while they are already visible.
+- Selecting an ancestor and one of its descendants in the same gesture is forbidden
+  unless both were independently visible at pointer-down and both marker centers were
+  inside the shape. Never recompute eligibility after expanding an ancestor, never
+  recursively expand the selected subtree, and never interpret containment inside the
+  minimap shape as consent to expand hidden green component or pink code levels.
+- After rectangle or circle selection is released, move the main camera to the
+  selected architecture area and fit the selected nodes plus their newly revealed
+  direct children inside the usable viewport. Do not fit the complete architecture;
+  preserve readable card scale and account for the minimap, title, breadcrumbs, and
+  open details panel when centering the selected area.
+- Make minimap area selection behave like Windows Snipping Tool: rectangle selection
+  is chosen by default, the map remains visually unchanged until dragging starts, and
+  the pointer is a crosshair. Dragging from any corner reveals the selected region;
+  releasing applies it. `Esc` and right-click cancel without changing expansion.
+  Suppress the post-release click so it cannot accidentally toggle or pan to an
+  underlying marker. Never dim, recolor, blur, or replace the idle minimap background.
+  `Expand all` expands every hierarchy branch in the main view without resizing the
+  minimap. Never force the complete expanded lane below a readable card width merely
+  to fit it on screen: preserve legible cards, align the lane after fixed UI, and rely
+  on horizontal pan for off-screen branches. Keep all controls within the existing
+  minimap dimensions, and never clip, truncate, or hide labels such as `Components`.
 - Give the minimap expanded, compact, and hidden states. Compact mode keeps a small
   labeled restore control while hiding the map, row controls, and helper text.
 - Every right-side node or edge detail panel must have an obvious close control. A
@@ -352,11 +627,27 @@ starting point. Important semantics:
 - Do not create a node for every file. Include only nodes that explain a meaningful
   responsibility, transformation, boundary, decision, or failure mode.
 - Keep labels under 36 characters and summaries under 260 characters.
+- Clip every title, owner line, summary, role, badge, and action to its own card.
+  Wrap long words when needed. At scales too small for the complete card content,
+  progressively hide summary, role, and actions rather than allowing text or buttons
+  to extend outside the rectangle.
+- Text inside a box must never be drawn on top of other text in that box. Measure the
+  rendered line count and height of the title, owner/repository metadata, summary,
+  ROLE label, complete role text, and action strip independently, then stack each
+  section below the measured bottom of the previous section with visible padding.
+  Never use fixed Y offsets that assume a title or metadata stays on one line. Grow
+  the card when text wraps; if readable growth is impossible at the current scale,
+  hide lower-priority sections rather than overprinting them. Any glyph-on-glyph or
+  line-on-line collision inside a card blocks publication.
 - Write summaries so their first two rendered lines independently explain what the
   rectangle does; do not rely on hover for basic comprehension.
 - Render a node's hover-detail panel wholly inside that node's rectangle, anchored
   to its lower interior with text wrapped to the available width. Never let node
   hover details float beyond or obscure a neighboring rectangle.
+- Keep the node hover compact: show the concise node summary rather than the full
+  details text, cap it to the card's usable interior, and reserve the complete bottom
+  action strip. A hover panel must never cover `Code`, `Telemetry`, or technology
+  actions; full details remain available in the click-open side panel.
 - Render a clearly labeled `ROLE` section inside every non-container rectangle. Show
   the explicit `role` when authored; for older scenes, derive it from the first one or
   two verified responsibilities. Wrap and show the complete role inside the rectangle;
@@ -416,6 +707,37 @@ Before opening:
 6. Confirm all substantive nodes have a summary, details, repo, and evidence status.
 7. Decode or inspect every telemetry deep link and confirm its query ends with
    `| limit 10`.
+8. Confirm every durable store discovered in the traced path has a `storage` node,
+   every storage node has a valid `storageType`, and each storage read/write edge
+   explains the operation, request purpose, payload, acknowledgement, and failure
+   semantics.
+9. Confirm no `parallelGroups.branchNodeIds` are serialized consecutively into the
+   canonical `e2eFlow.nodeIds`, every parallel source/branch/join ID exists, and each
+   branch has an explicit `overview: true` request edge and response edge returning to
+   the caller or declared join node.
+10. Compare phase numbering with the source-backed dependency timeline. Concurrent
+    branches must share one phase; cache hits, conditionals, post-response work, and
+    failure-only branches must not appear as unconditional sequential steps.
+11. Project the final overview routes and confirm no caller-to-dependency edge or
+    caller-to-continuation spine segment intersects any non-endpoint dependency card
+    from that caller's fan-out.
+12. Confirm every top-level node absent from the canonical `e2eFlow.nodeIds` is wholly
+    above or below the main-chain vertical band and is visually grouped with its real
+    caller rather than inserted between sequential main-chain services.
+13. Run a final visual collision pass across cards, cylinders, badges, profile text,
+    DNS controls, network boundaries, arrows, edge labels, markers, minimap, and fixed
+    UI. Any overlap between unrelated visible items blocks publication.
+14. Inspect every visible card at overview and supported expansion scales. Confirm its
+    title, owner/repository metadata, summary, ROLE label, role text, and actions have
+    disjoint measured vertical bounds; any text-on-text overlap blocks publication.
+15. For every storage node at every supported expansion state, enumerate all authored
+    incident edges and confirm each is rendered. Hidden non-storage endpoints must land
+    on their nearest visible ancestor with the concrete endpoint name in the label;
+    no incident edge may disappear because `All interactions` is off.
+16. Re-audit every node against the user-named scenario. Remove nodes that are merely
+    adjacent, share infrastructure, or represent Auxiliary, export, indexing, backfill,
+    alternate-ingress, or an unproven branch. Confirm every remaining node contributes
+    to the requested result, its durability, retry, acknowledgement, or failure path.
 
 Open with:
 
